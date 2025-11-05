@@ -1,0 +1,38 @@
+# Configuration example for Swoole Bundle
+# Copy this to your config/packages/swoole.yaml
+
+swoole:
+    http:
+        host: '0.0.0.0'
+        port: 9501
+        options:
+            open_http2_protocol: false
+            open_websocket_protocol: false
+            enable_static_handler: false
+            document_root: null
+    
+    https:
+        enabled: false
+        port: 9502
+        cert: null
+        key: null
+    
+    hot_reload:
+        enabled: true
+        watch:
+            - src
+            - config
+            - templates
+    
+    performance:
+        worker_num: ~  # Auto-detect CPU count
+        max_request: 10000
+        enable_coroutine: true
+        max_coroutine: 100000
+        coroutine_hook_flags: ~  # Default: SWOOLE_HOOK_ALL
+    
+    debug:
+        enabled: '%kernel.debug%'
+        enable_dd: true
+        enable_var_dump: true
+

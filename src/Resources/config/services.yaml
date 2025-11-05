@@ -1,0 +1,70 @@
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    Toadbeatz\SwooleBundle\:
+        resource: '../..'
+        exclude:
+            - '../DependencyInjection'
+            - '../Entity'
+            - '../Kernel.php'
+
+    # Swoole Server
+    Toadbeatz\SwooleBundle\Server\SwooleServer:
+        arguments:
+            $host: '%swoole.http.host%'
+            $port: '%swoole.http.port%'
+            $options: '%swoole.http.options%'
+            $httpsConfig:
+                enabled: '%swoole.https.enabled%'
+                port: '%swoole.https.port%'
+                cert: '%swoole.https.cert%'
+                key: '%swoole.https.key%'
+            $performanceConfig:
+                worker_num: '%swoole.performance.worker_num%'
+                max_request: '%swoole.performance.max_request%'
+                enable_coroutine: '%swoole.performance.enable_coroutine%'
+                max_coroutine: '%swoole.performance.max_coroutine%'
+                coroutine_hook_flags: '%swoole.performance.coroutine_hook_flags%'
+            $debugConfig:
+                enabled: '%swoole.debug.enabled%'
+                enable_dd: '%swoole.debug.enable_dd%'
+                enable_var_dump: '%swoole.debug.enable_var_dump%'
+
+    # HTTP Server Manager
+    Toadbeatz\SwooleBundle\Server\HttpServerManager:
+        arguments:
+            $swooleServer: '@Toadbeatz\SwooleBundle\Server\SwooleServer'
+            $kernel: '@kernel'
+            $requestStack: '@request_stack'
+            $eventDispatcher: '@event_dispatcher'
+
+    # Cache Adapter
+    Toadbeatz\SwooleBundle\Cache\SwooleCacheAdapter:
+        arguments:
+            $table: '@Toadbeatz\SwooleBundle\Cache\SwooleTable'
+
+    # Swoole Table for cache
+    Toadbeatz\SwooleBundle\Cache\SwooleTable:
+        factory: ['Toadbeatz\SwooleBundle\Cache\SwooleTableFactory', 'createCacheTable']
+
+    # Session Handler
+    Toadbeatz\SwooleBundle\Session\SwooleSessionHandler:
+        arguments:
+            $table: '@Toadbeatz\SwooleBundle\Cache\SwooleTable'
+            $ttl: 3600
+
+    # Hot Reload Service
+    Toadbeatz\SwooleBundle\HotReload\HotReloadWatcher:
+        arguments:
+            $watchPaths: '%swoole.hot_reload.watch%'
+            $enabled: '%swoole.hot_reload.enabled%'
+
+    # Debug Handler
+    Toadbeatz\SwooleBundle\Debug\DebugHandler:
+        arguments:
+            $enabled: '%swoole.debug.enabled%'
+            $enableDd: '%swoole.debug.enable_dd%'
+            $enableVarDump: '%swoole.debug.enable_var_dump%'
+

@@ -1,0 +1,51 @@
+{
+    "name": "toadbeatz/swoole-bundle",
+    "type": "symfony-bundle",
+    "description": "High-performance Swoole 6.1 integration bundle for Symfony 7, exploiting all Swoole capabilities",
+    "keywords": ["swoole", "symfony", "async", "performance", "coroutines", "websocket"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "toadbeatz",
+            "email": "toadbeatz@example.com"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "symfony/framework-bundle": "^7.0",
+        "symfony/console": "^7.0",
+        "symfony/config": "^7.0",
+        "symfony/dependency-injection": "^7.0",
+        "symfony/http-kernel": "^7.0",
+        "symfony/runtime": "^7.0",
+        "symfony/yaml": "^7.0",
+        "ext-swoole": "^6.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0",
+        "symfony/phpunit-bridge": "^7.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Toadbeatz\\SwooleBundle\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Toadbeatz\\SwooleBundle\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "symfony": {
+            "allow-contrib": false,
+            "require": "7.0"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "config": {
+        "allow-plugins": {
+            "symfony/runtime": true
+        }
+    }
+}

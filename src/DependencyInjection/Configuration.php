@@ -1,0 +1,138 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Toadbeatz\SwooleBundle\DependencyInjection;
+
+use Symfony\Component\Config\Definition\Builder\TreeBuilder;
+use Symfony\Component\Config\Definition\ConfigurationInterface;
+
+/**
+ * Configuration definition for Swoole Bundle
+ */
+class Configuration implements ConfigurationInterface
+{
+    public function getConfigTreeBuilder(): TreeBuilder
+    {
+        $treeBuilder = new TreeBuilder('swoole');
+        $rootNode = $treeBuilder->getRootNode();
+
+        $rootNode
+            ->children()
+                ->arrayNode('http')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->scalarNode('host')->defaultValue('0.0.0.0')->end()
+                        ->integerNode('port')->defaultValue(9501)->end()
+                        ->arrayNode('options')
+                            ->addDefaultsIfNotSet()
+                            ->children()
+                                ->booleanNode('open_http2_protocol')->defaultFalse()->end()
+                                ->booleanNode('open_websocket_protocol')->defaultFalse()->end()
+                                ->booleanNode('enable_static_handler')->defaultFalse()->end()
+                                ->scalarNode('document_root')->defaultNull()->end()
+                            ->end()
+                        ->end()
+                    ->end()
+                ->end()
+                ->arrayNode('https')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('enabled')->defaultFalse()->end()
+                        ->integerNode('port')->defaultValue(9502)->end()
+                        ->scalarNode('cert')->defaultNull()->end()
+                        ->scalarNode('key')->defaultNull()->end()
+                    ->end()
+                ->end()
+                ->arrayNode('hot_reload')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('enabled')->defaultTrue()->end()
+                        ->arrayNode('watch')
+                            ->prototype('scalar')->end()
+                            ->defaultValue(['src', 'config', 'templates'])
+                        ->end()
+                    ->end()
+                ->end()
+                ->arrayNode('performance')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->integerNode('worker_num')
+                            ->defaultNull()
+                            ->info('Number of worker processes (default: auto-detect CPU count)')
+                        ->end()
+                        ->integerNode('max_request')
+                            ->defaultValue(10000)
+                            ->info('Max requests per worker before restart')
+                        ->end()
+                        ->booleanNode('enable_coroutine')
+                            ->defaultTrue()
+                            ->info('Enable coroutine support')
+                        ->end()
+                        ->integerNode('max_coroutine')
+                            ->defaultValue(100000)
+                            ->info('Maximum number of coroutines')
+                        ->end()
+                        ->integerNode('coroutine_hook_flags')
+                            ->defaultNull()
+                            ->info('Coroutine hook flags (default: SWOOLE_HOOK_ALL)')
+                        ->end()
+                    ->end()
+                ->end()
+                ->arrayNode('debug')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('enabled')->defaultFalse()->end()
+                        ->booleanNode('enable_dd')->defaultTrue()->end()
+                        ->booleanNode('enable_var_dump')->defaultTrue()->end()
+                    ->end()
+                ->end()
+                ->arrayNode('database')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('enable_pool')->defaultTrue()->end()
+                        ->integerNode('pool_size')->defaultValue(10)->end()
+                        ->floatNode('pool_timeout')->defaultValue(5.0)->end()
+                    ->end()
+                ->end()
+                ->arrayNode('task')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->integerNode('worker_num')->defaultValue(2)->end()
+                        ->integerNode('max_request')->defaultValue(10000)->end()
+                    ->end()
+                ->end()
+                ->integerNode('task_worker_num')
+                    ->defaultValue(2)
+                    ->info('Number of task worker processes')
+                ->end()
+                ->integerNode('task_max_request')
+                    ->defaultValue(10000)
+                    ->info('Max tasks per task worker before restart')
+                ->end()
+                ->arrayNode('scheduler')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('enabled')->defaultTrue()->end()
+                    ->end()
+                ->end()
+                ->arrayNode('rate_limiter')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->integerNode('max_requests')->defaultValue(100)->end()
+                        ->integerNode('window_seconds')->defaultValue(60)->end()
+                    ->end()
+                ->end()
+                ->arrayNode('metrics')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('enabled')->defaultTrue()->end()
+                        ->integerNode('export_interval')->defaultValue(60)->end()
+                    ->end()
+                ->end()
+            ->end();
+
+        return $treeBuilder;
+    }
+}
+
