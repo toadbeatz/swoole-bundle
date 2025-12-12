@@ -162,17 +162,40 @@ class HttpServerManager
 
     /**
      * Handle worker start event
+     * 
+     * This is called when a worker process starts or after a reload.
+     * We clear OPcache here to ensure new code is loaded.
      */
     private function onWorkerStart($server, int $workerId): void
     {
-        // Clear opcache in development
-        if ($this->kernel->getEnvironment() === 'dev') {
-            if (\function_exists('opcache_reset')) {
-                \opcache_reset();
+        // Clear OPcache to ensure fresh code is loaded after reload
+        // This is especially important in production after a reload
+        if (\function_exists('opcache_reset')) {
+            \opcache_reset();
+        }
+
+        // Also invalidate common autoload files
+        if (\function_exists('opcache_invalidate')) {
+            $projectDir = $this->kernel->getProjectDir();
+            $filesToInvalidate = [
+                $projectDir . '/vendor/autoload.php',
+                $projectDir . '/config/services.php',
+                $projectDir . '/config/bundles.php',
+            ];
+            
+            foreach ($filesToInvalidate as $file) {
+                if (\file_exists($file)) {
+                    \opcache_invalidate($file, true);
+                }
             }
         }
 
-        // Start metrics collection timer if available
+        // Clear Symfony cache in development
+        if ($this->kernel->getEnvironment() === 'dev') {
+            // Additional dev-specific cleanup can go here
+        }
+
+        // Start metrics collection timer if available (only for first worker)
         if ($this->metricsCollector !== null && $workerId === 0) {
             $this->metricsCollector->startCollecting();
         }
