@@ -164,6 +164,39 @@ services:
     Toadbeatz\SwooleBundle\Process\ProcessManager: ~
 
     # ============================================
+    # HOT RELOAD SERVICES
+    # ============================================
+
+    # Hot Reload Watcher
+    Toadbeatz\SwooleBundle\HotReload\HotReloadWatcher:
+        arguments:
+            $watchPaths: '%swoole.hot_reload.watch%'
+            $enabled: '%swoole.hot_reload.enabled%'
+
+    # ============================================
+    # COROUTINE SERVICES
+    # ============================================
+
+    # Coroutine Helper
+    Toadbeatz\SwooleBundle\Coroutine\CoroutineHelper: ~
+
+    # ============================================
+    # FILESYSTEM SERVICES
+    # ============================================
+
+    # Async File System
+    Toadbeatz\SwooleBundle\FileSystem\AsyncFileSystem: ~
+
+    # ============================================
+    # TASK SERVICES
+    # ============================================
+
+    # Task Worker
+    Toadbeatz\SwooleBundle\Task\TaskWorker:
+        arguments:
+            $server: '@Toadbeatz\SwooleBundle\Server\SwooleServer'
+
+    # ============================================
     # ALIASES FOR SYMFONY INTEGRATION
     # ============================================
 

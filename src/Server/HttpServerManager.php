@@ -14,6 +14,9 @@ use Toadbeatz\SwooleBundle\Metrics\MetricsCollector;
 
 /**
  * HTTP Server Manager for handling Symfony requests via Swoole
+ * 
+ * This manager bridges Swoole HTTP server with Symfony's kernel,
+ * handling request/response conversion and lifecycle events.
  */
 class HttpServerManager
 {
@@ -22,6 +25,9 @@ class HttpServerManager
     private $requestStack;
     private EventDispatcherInterface $eventDispatcher;
     private ?MetricsCollector $metricsCollector = null;
+
+    /** @var array<string, callable> */
+    private array $taskHandlers = [];
 
     public function __construct(
         SwooleServer $swooleServer,
@@ -42,6 +48,14 @@ class HttpServerManager
         return $this->swooleServer;
     }
 
+    /**
+     * Register a task handler for a specific task type
+     */
+    public function registerTaskHandler(string $type, callable $handler): void
+    {
+        $this->taskHandlers[$type] = $handler;
+    }
+
     public function initialize(): void
     {
         $server = $this->swooleServer->getServer();
@@ -53,23 +67,148 @@ class HttpServerManager
 
         // Worker start event
         $server->on('workerStart', function ($server, $workerId) {
-            // Clear opcache in development
-            if ($this->kernel->getEnvironment() === 'dev') {
-                if (\function_exists('opcache_reset')) {
-                    \opcache_reset();
-                }
-            }
+            $this->onWorkerStart($server, $workerId);
         });
 
         // Worker stop event
         $server->on('workerStop', function ($server, $workerId) {
-            // Cleanup if needed
+            $this->onWorkerStop($server, $workerId);
         });
 
         // Shutdown event
         $server->on('shutdown', function () {
-            // Cleanup
+            $this->onShutdown();
         });
+
+        // Task worker handler - required when task_worker_num > 0
+        $server->on('task', function ($server, $taskId, $reactorId, $data) {
+            return $this->handleTask($server, $taskId, $reactorId, $data);
+        });
+
+        // Task finish handler - required when task_worker_num > 0
+        $server->on('finish', function ($server, $taskId, $data) {
+            $this->handleTaskFinish($server, $taskId, $data);
+        });
+
+        // Worker error handler
+        $server->on('workerError', function ($server, $workerId, $workerPid, $exitCode, $signal) {
+            $this->onWorkerError($workerId, $workerPid, $exitCode, $signal);
+        });
+    }
+
+    /**
+     * Handle task execution
+     * 
+     * @param mixed $server Swoole server instance
+     * @param int $taskId Task ID
+     * @param int $reactorId Worker ID that sent the task
+     * @param mixed $data Task data
+     * @return mixed Task result
+     */
+    private function handleTask($server, int $taskId, int $reactorId, mixed $data): mixed
+    {
+        try {
+            // If data is a callable, execute it directly
+            if (\is_callable($data)) {
+                return $data();
+            }
+
+            // If data is an array with 'type' and 'payload', use registered handlers
+            if (\is_array($data) && isset($data['type'])) {
+                $type = $data['type'];
+                $payload = $data['payload'] ?? [];
+
+                if (isset($this->taskHandlers[$type])) {
+                    return ($this->taskHandlers[$type])($payload);
+                }
+
+                // Default handler for unknown types
+                return [
+                    'status' => 'error',
+                    'message' => \sprintf('No handler registered for task type: %s', $type),
+                ];
+            }
+
+            // Return data as-is for simple tasks
+            return $data;
+        } catch (\Throwable $e) {
+            // Log error and return error response
+            \error_log(\sprintf(
+                '[Swoole Task #%d] Error: %s in %s:%d',
+                $taskId,
+                $e->getMessage(),
+                $e->getFile(),
+                $e->getLine()
+            ));
+
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'task_id' => $taskId,
+            ];
+        }
+    }
+
+    /**
+     * Handle task completion
+     */
+    private function handleTaskFinish($server, int $taskId, mixed $data): void
+    {
+        // Log successful task completion if in debug mode
+        if ($this->kernel->isDebug()) {
+            \error_log(\sprintf('[Swoole Task #%d] Completed', $taskId));
+        }
+    }
+
+    /**
+     * Handle worker start event
+     */
+    private function onWorkerStart($server, int $workerId): void
+    {
+        // Clear opcache in development
+        if ($this->kernel->getEnvironment() === 'dev') {
+            if (\function_exists('opcache_reset')) {
+                \opcache_reset();
+            }
+        }
+
+        // Start metrics collection timer if available
+        if ($this->metricsCollector !== null && $workerId === 0) {
+            $this->metricsCollector->startCollecting();
+        }
+    }
+
+    /**
+     * Handle worker stop event
+     */
+    private function onWorkerStop($server, int $workerId): void
+    {
+        // Stop metrics collection if this is the first worker
+        if ($this->metricsCollector !== null && $workerId === 0) {
+            $this->metricsCollector->stopCollecting();
+        }
+    }
+
+    /**
+     * Handle server shutdown event
+     */
+    private function onShutdown(): void
+    {
+        // Cleanup resources
+    }
+
+    /**
+     * Handle worker error event
+     */
+    private function onWorkerError(int $workerId, int $workerPid, int $exitCode, int $signal): void
+    {
+        \error_log(\sprintf(
+            '[Swoole Worker #%d] Error - PID: %d, Exit Code: %d, Signal: %d',
+            $workerId,
+            $workerPid,
+            $exitCode,
+            $signal
+        ));
     }
 
     private function handleRequest($swooleRequest, $swooleResponse): void
@@ -129,6 +268,14 @@ class HttpServerManager
         $serverVars['SERVER_PORT'] = $server['server_port'] ?? 80;
         $serverVars['QUERY_STRING'] = $server['query_string'] ?? '';
 
+        // Handle content type for POST requests
+        if (isset($headers['content-type'])) {
+            $serverVars['CONTENT_TYPE'] = $headers['content-type'];
+        }
+        if (isset($headers['content-length'])) {
+            $serverVars['CONTENT_LENGTH'] = $headers['content-length'];
+        }
+
         // Create Symfony request
         $request = Request::create(
             $serverVars['REQUEST_URI'],
@@ -139,6 +286,11 @@ class HttpServerManager
             $serverVars,
             $swooleRequest->rawContent() ?: null
         );
+
+        // Set POST data if present
+        if (!empty($swooleRequest->post)) {
+            $request->request->replace($swooleRequest->post);
+        }
 
         // Set headers
         foreach ($headers as $key => $value) {
@@ -160,45 +312,63 @@ class HttpServerManager
             }
         }
 
-        // Remove Content-Length header as Swoole will set it
-        $swooleResponse->header('Content-Length', (string) \strlen($response->getContent()));
+        // Get content
+        $content = $response->getContent();
+
+        // Set Content-Length header
+        $swooleResponse->header('Content-Length', (string) \strlen($content));
 
         // Send cookies
         foreach ($response->headers->getCookies() as $cookie) {
             $swooleResponse->cookie(
                 $cookie->getName(),
-                $cookie->getValue(),
+                $cookie->getValue() ?? '',
                 $cookie->getExpiresTime(),
                 $cookie->getPath(),
-                $cookie->getDomain(),
+                $cookie->getDomain() ?? '',
                 $cookie->isSecure(),
                 $cookie->isHttpOnly(),
-                $cookie->getSameSite()
+                $cookie->getSameSite() ?? ''
             );
         }
 
         // Send content
-        $swooleResponse->end($response->getContent());
+        $swooleResponse->end($content);
     }
 
     private function handleException($swooleResponse, \Throwable $e): void
     {
         $swooleResponse->status(500);
-        $swooleResponse->header('Content-Type', 'text/plain');
+        $swooleResponse->header('Content-Type', 'text/html; charset=UTF-8');
         
         if ($this->kernel->isDebug()) {
-            $swooleResponse->end(
-                \sprintf(
-                    "Error: %s\nFile: %s\nLine: %d\n\n%s",
-                    $e->getMessage(),
-                    $e->getFile(),
-                    $e->getLine(),
-                    $e->getTraceAsString()
-                )
-            );
+            $html = <<<HTML
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Error</title>
+    <style>
+        body { font-family: sans-serif; margin: 40px; background: #f5f5f5; }
+        .error { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .title { color: #c0392b; margin: 0 0 10px; }
+        .message { color: #333; }
+        .trace { background: #2c3e50; color: #ecf0f1; padding: 15px; border-radius: 4px; overflow-x: auto; font-size: 12px; margin-top: 15px; }
+        pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+    <div class="error">
+        <h1 class="title">Error</h1>
+        <p class="message">{$e->getMessage()}</p>
+        <p><strong>File:</strong> {$e->getFile()}:{$e->getLine()}</p>
+        <div class="trace"><pre>{$e->getTraceAsString()}</pre></div>
+    </div>
+</body>
+</html>
+HTML;
+            $swooleResponse->end($html);
         } else {
-            $swooleResponse->end('Internal Server Error');
+            $swooleResponse->end('<h1>Internal Server Error</h1><p>An error occurred while processing your request.</p>');
         }
     }
 }
-

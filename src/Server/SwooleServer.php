@@ -10,7 +10,9 @@ use Toadbeatz\SwooleBundle\Debug\DebugHandler;
 
 /**
  * Swoole Server wrapper for Symfony 7/8
- * Exploits ALL Swoole 6.1.4 capabilities for maximum performance
+ * 
+ * Exploits ALL Swoole 6.1.4 capabilities for maximum performance.
+ * Fully compatible with Swoole 6.1+ API changes.
  * 
  * @since Swoole 6.1
  * @compatible Symfony 7.0, 8.0
@@ -56,9 +58,10 @@ class SwooleServer
         $this->server = new SwooleHttpServer($host, $port, $serverMode);
 
         // Enable coroutines if configured
+        // Note: Swoole 6.1+ only accepts one argument for enableCoroutine()
         if ($this->performanceConfig['enable_coroutine'] ?? true) {
             $hookFlags = $this->performanceConfig['coroutine_hook_flags'] ?? \SWOOLE_HOOK_ALL;
-            Runtime::enableCoroutine($hookFlags, true);
+            Runtime::enableCoroutine($hookFlags);
         }
 
         // Configure server options
@@ -70,7 +73,7 @@ class SwooleServer
      */
     private function determineServerMode(): int
     {
-        // Check if thread mode is requested and available
+        // Check if thread mode is requested and available (Swoole 6.0+)
         if (($this->performanceConfig['thread_mode'] ?? false) && \defined('SWOOLE_THREAD')) {
             return \SWOOLE_THREAD;
         }
@@ -122,14 +125,13 @@ class SwooleServer
             'heartbeat_idle_time' => $this->performanceConfig['heartbeat_idle_time'] ?? 60,
         ];
 
-        // HTTP/2 support (enhanced)
+        // HTTP/2 support
+        // Note: Swoole 6.1 removed fine-grained HTTP/2 options, only open_http2_protocol is supported
         if ($options['open_http2_protocol'] ?? false) {
             $serverOptions['open_http2_protocol'] = true;
-            $serverOptions['http2_header_table_size'] = $this->http2Config['header_table_size'] ?? 4096;
-            $serverOptions['http2_initial_window_size'] = $this->http2Config['initial_window_size'] ?? 65535;
-            $serverOptions['http2_max_concurrent_streams'] = $this->http2Config['max_concurrent_streams'] ?? 128;
-            $serverOptions['http2_max_frame_size'] = $this->http2Config['max_frame_size'] ?? 16384;
-            $serverOptions['http2_max_header_list_size'] = $this->http2Config['max_header_list_size'] ?? 4096;
+            // HTTP/2 fine-tuning options removed for Swoole 6.1+ compatibility
+            // Options like http2_header_table_size, http2_initial_window_size, etc.
+            // are no longer supported in Swoole 6.1
         }
 
         // WebSocket support
@@ -216,5 +218,28 @@ class SwooleServer
     {
         return $this->server->addListener($host, $port, $type);
     }
-}
 
+    /**
+     * Reload all workers gracefully
+     */
+    public function reload(): bool
+    {
+        return $this->server->reload();
+    }
+
+    /**
+     * Stop the server
+     */
+    public function stop(): void
+    {
+        $this->server->stop();
+    }
+
+    /**
+     * Get server statistics
+     */
+    public function stats(): array
+    {
+        return $this->server->stats();
+    }
+}
