@@ -1,29 +1,55 @@
 {
     "name": "toadbeatz/swoole-bundle",
     "type": "symfony-bundle",
-    "description": "High-performance Swoole 6.1 integration bundle for Symfony 7, exploiting all Swoole capabilities",
-    "keywords": ["swoole", "symfony", "async", "performance", "coroutines", "websocket"],
-    "license": "MIT",
-    "authors": [
-        {
-            "name": "toadbeatz",
-            "email": "toadbeatz@example.com"
-        }
+    "description": "High-performance Swoole 6.1.4 integration bundle for Symfony 7/8, exploiting ALL Swoole capabilities for maximum performance",
+    "keywords": [
+        "swoole",
+        "symfony",
+        "async",
+        "performance",
+        "coroutines",
+        "websocket",
+        "http2",
+        "http3",
+        "threading",
+        "connection-pool",
+        "high-performance"
     ],
+    "license": "MIT",
+    "homepage": "https://github.com/toadbeatz/swoole-bundle",
+    "authors": [{
+        "name": "toadbeatz",
+        "email": "alvingely.pro@gmail.com"
+    }],
+    "support": {
+        "issues": "https://github.com/toadbeatz/swoole-bundle/issues",
+        "source": "https://github.com/toadbeatz/swoole-bundle"
+    },
     "require": {
-        "php": "^8.2",
-        "symfony/framework-bundle": "^7.0",
-        "symfony/console": "^7.0",
-        "symfony/config": "^7.0",
-        "symfony/dependency-injection": "^7.0",
-        "symfony/http-kernel": "^7.0",
-        "symfony/runtime": "^7.0",
-        "symfony/yaml": "^7.0",
-        "ext-swoole": "^6.1"
+        "php": "^8.2 || ^8.3 || ^8.4",
+        "symfony/framework-bundle": "^7.0 || ^8.0",
+        "symfony/console": "^7.0 || ^8.0",
+        "symfony/config": "^7.0 || ^8.0",
+        "symfony/dependency-injection": "^7.0 || ^8.0",
+        "symfony/http-kernel": "^7.0 || ^8.0",
+        "symfony/http-foundation": "^7.0 || ^8.0",
+        "symfony/runtime": "^7.0 || ^8.0",
+        "symfony/yaml": "^7.0 || ^8.0",
+        "symfony/cache": "^7.0 || ^8.0",
+        "symfony/cache-contracts": "^3.4",
+        "symfony/event-dispatcher": "^7.0 || ^8.0",
+        "ext-swoole": "^6.0"
     },
     "require-dev": {
-        "phpunit/phpunit": "^11.0",
-        "symfony/phpunit-bridge": "^7.0"
+        "phpunit/phpunit": "^11.0 || ^12.0",
+        "symfony/phpunit-bridge": "^7.0 || ^8.0",
+        "symfony/var-dumper": "^7.0 || ^8.0"
+    },
+    "suggest": {
+        "ext-pgsql": "For PostgreSQL connection pooling",
+        "ext-redis": "For Redis connection pooling",
+        "doctrine/dbal": "For Doctrine database connection pooling",
+        "symfony/messenger": "For async message handling with Swoole"
     },
     "autoload": {
         "psr-4": {
@@ -38,7 +64,10 @@
     "extra": {
         "symfony": {
             "allow-contrib": false,
-            "require": "7.0"
+            "require": "^7.0 || ^8.0"
+        },
+        "branch-alias": {
+            "dev-main": "2.0-dev"
         }
     },
     "minimum-stability": "stable",
@@ -46,6 +75,7 @@
     "config": {
         "allow-plugins": {
             "symfony/runtime": true
-        }
+        },
+        "sort-packages": true
     }
 }

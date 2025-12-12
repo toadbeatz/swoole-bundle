@@ -10,6 +10,10 @@ services:
             - '../Entity'
             - '../Kernel.php'
 
+    # ============================================
+    # CORE SERVICES
+    # ============================================
+
     # Swoole Server
     Toadbeatz\SwooleBundle\Server\SwooleServer:
         arguments:
@@ -21,16 +25,42 @@ services:
                 port: '%swoole.https.port%'
                 cert: '%swoole.https.cert%'
                 key: '%swoole.https.key%'
+                ca: '%swoole.https.ca%'
+                verify_peer: '%swoole.https.verify_peer%'
+                protocols: '%swoole.https.protocols%'
             $performanceConfig:
                 worker_num: '%swoole.performance.worker_num%'
                 max_request: '%swoole.performance.max_request%'
                 enable_coroutine: '%swoole.performance.enable_coroutine%'
                 max_coroutine: '%swoole.performance.max_coroutine%'
                 coroutine_hook_flags: '%swoole.performance.coroutine_hook_flags%'
+                max_connection: '%swoole.performance.max_connection%'
+                buffer_output_size: '%swoole.performance.buffer_output_size%'
+                socket_buffer_size: '%swoole.performance.socket_buffer_size%'
+                package_max_length: '%swoole.performance.package_max_length%'
+                enable_compression: '%swoole.performance.enable_compression%'
+                compression_level: '%swoole.performance.compression_level%'
+                compression_min_length: '%swoole.performance.compression_min_length%'
+                websocket_compression: '%swoole.performance.websocket_compression%'
+                daemonize: '%swoole.performance.daemonize%'
+                heartbeat_interval: '%swoole.performance.heartbeat_interval%'
+                heartbeat_idle_time: '%swoole.performance.heartbeat_idle_time%'
+                enable_reuse_port: '%swoole.performance.enable_reuse_port%'
+                thread_mode: '%swoole.performance.thread_mode%'
+                base_mode: '%swoole.performance.base_mode%'
             $debugConfig:
                 enabled: '%swoole.debug.enabled%'
                 enable_dd: '%swoole.debug.enable_dd%'
                 enable_var_dump: '%swoole.debug.enable_var_dump%'
+            $taskConfig:
+                worker_num: '%swoole.task.worker_num%'
+                max_request: '%swoole.task.max_request%'
+            $http2Config:
+                header_table_size: '%swoole.http2.header_table_size%'
+                initial_window_size: '%swoole.http2.initial_window_size%'
+                max_concurrent_streams: '%swoole.http2.max_concurrent_streams%'
+                max_frame_size: '%swoole.http2.max_frame_size%'
+                max_header_list_size: '%swoole.http2.max_header_list_size%'
 
     # HTTP Server Manager
     Toadbeatz\SwooleBundle\Server\HttpServerManager:
@@ -39,32 +69,128 @@ services:
             $kernel: '@kernel'
             $requestStack: '@request_stack'
             $eventDispatcher: '@event_dispatcher'
+            $metricsCollector: '@Toadbeatz\SwooleBundle\Metrics\MetricsCollector'
+
+    # ============================================
+    # CACHE SERVICES
+    # ============================================
+
+    # Swoole Table for cache
+    Toadbeatz\SwooleBundle\Cache\SwooleTable:
+        factory: ['Toadbeatz\SwooleBundle\Cache\SwooleTableFactory', 'createCacheTable']
 
     # Cache Adapter
     Toadbeatz\SwooleBundle\Cache\SwooleCacheAdapter:
         arguments:
             $table: '@Toadbeatz\SwooleBundle\Cache\SwooleTable'
 
-    # Swoole Table for cache
-    Toadbeatz\SwooleBundle\Cache\SwooleTable:
-        factory: ['Toadbeatz\SwooleBundle\Cache\SwooleTableFactory', 'createCacheTable']
-
     # Session Handler
     Toadbeatz\SwooleBundle\Session\SwooleSessionHandler:
         arguments:
             $table: '@Toadbeatz\SwooleBundle\Cache\SwooleTable'
-            $ttl: 3600
 
-    # Hot Reload Service
-    Toadbeatz\SwooleBundle\HotReload\HotReloadWatcher:
+    # ============================================
+    # DATABASE SERVICES
+    # ============================================
+
+    # MySQL Connection Pool
+    Toadbeatz\SwooleBundle\Database\ConnectionPool:
         arguments:
-            $watchPaths: '%swoole.hot_reload.watch%'
-            $enabled: '%swoole.hot_reload.enabled%'
+            $config: []
+            $size: '%swoole.database.mysql.pool_size%'
+            $timeout: '%swoole.database.mysql.timeout%'
 
-    # Debug Handler
-    Toadbeatz\SwooleBundle\Debug\DebugHandler:
+    # PostgreSQL Connection Pool
+    Toadbeatz\SwooleBundle\Database\PostgreSQLPool:
         arguments:
-            $enabled: '%swoole.debug.enabled%'
-            $enableDd: '%swoole.debug.enable_dd%'
-            $enableVarDump: '%swoole.debug.enable_var_dump%'
+            $config: []
+            $size: '%swoole.database.postgresql.pool_size%'
+            $timeout: '%swoole.database.postgresql.timeout%'
 
+    # Redis Connection Pool
+    Toadbeatz\SwooleBundle\Database\RedisPool:
+        arguments:
+            $config: []
+            $size: '%swoole.database.redis.pool_size%'
+            $timeout: '%swoole.database.redis.timeout%'
+
+    # ============================================
+    # ASYNC SERVICES
+    # ============================================
+
+    # Task Scheduler
+    Toadbeatz\SwooleBundle\Task\Scheduler: ~
+
+    # HTTP Client (async)
+    Toadbeatz\SwooleBundle\HttpClient\SwooleHttpClient: ~
+
+    # HTTP/2 Client
+    Toadbeatz\SwooleBundle\Http\Http2Client:
+        arguments:
+            $host: 'localhost'
+            $port: 443
+            $ssl: true
+            $timeout: 5.0
+
+    # WebSocket Handler
+    Toadbeatz\SwooleBundle\WebSocket\WebSocketHandler: ~
+
+    # ============================================
+    # SYNCHRONIZATION SERVICES
+    # ============================================
+
+    # Rate Limiter
+    Toadbeatz\SwooleBundle\RateLimiter\RateLimiter:
+        arguments:
+            $maxRequests: '%swoole.rate_limiter.max_requests%'
+            $windowSeconds: '%swoole.rate_limiter.window_seconds%'
+
+    # ============================================
+    # MONITORING SERVICES
+    # ============================================
+
+    # Metrics Collector
+    Toadbeatz\SwooleBundle\Metrics\MetricsCollector:
+        arguments:
+            $server: '@Toadbeatz\SwooleBundle\Server\SwooleServer'
+        calls:
+            - [getServer, []]
+
+    # ============================================
+    # PROCESS SERVICES
+    # ============================================
+
+    # Process Manager
+    Toadbeatz\SwooleBundle\Process\ProcessManager: ~
+
+    # ============================================
+    # ALIASES FOR SYMFONY INTEGRATION
+    # ============================================
+
+    # Cache interface alias
+    swoole.cache:
+        alias: Toadbeatz\SwooleBundle\Cache\SwooleCacheAdapter
+
+    # Session handler alias
+    swoole.session_handler:
+        alias: Toadbeatz\SwooleBundle\Session\SwooleSessionHandler
+
+    # HTTP Client alias
+    swoole.http_client:
+        alias: Toadbeatz\SwooleBundle\HttpClient\SwooleHttpClient
+
+    # Rate limiter alias
+    swoole.rate_limiter:
+        alias: Toadbeatz\SwooleBundle\RateLimiter\RateLimiter
+
+    # MySQL pool alias
+    swoole.mysql_pool:
+        alias: Toadbeatz\SwooleBundle\Database\ConnectionPool
+
+    # PostgreSQL pool alias
+    swoole.pgsql_pool:
+        alias: Toadbeatz\SwooleBundle\Database\PostgreSQLPool
+
+    # Redis pool alias
+    swoole.redis_pool:
+        alias: Toadbeatz\SwooleBundle\Database\RedisPool
