@@ -852,6 +852,89 @@ framework:
 
 ---
 
+## 13. Server Management Commands
+
+### Start Server
+
+Start the Swoole HTTP server:
+
+```bash
+# Production mode
+php bin/console swoole:server:start
+
+# With custom host/port
+php bin/console swoole:server:start --host=127.0.0.1 --port=8080
+```
+
+### Stop Server
+
+Stop the running server:
+
+```bash
+php bin/console swoole:server:stop
+
+# Force kill
+php bin/console swoole:server:stop --force
+```
+
+### Reload Server (Zero-Downtime)
+
+**Production-ready reload command** - Reload workers gracefully to apply code changes without stopping the server:
+
+```bash
+# Standard reload (clears cache + reloads workers)
+php bin/console swoole:server:reload
+
+# Skip cache clearing
+php bin/console swoole:server:reload --no-cache-clear
+
+# Only clear cache without reloading workers
+php bin/console swoole:server:reload --only-cache
+
+# Force OPcache clearing
+php bin/console swoole:server:reload --opcache
+```
+
+**How it works:**
+1. Clears Symfony cache (`var/cache`)
+2. Clears OPcache to ensure fresh code loading
+3. Sends reload signal (SIGUSR1) to all workers
+4. Workers finish current requests gracefully
+5. Workers reload with new code (zero downtime)
+
+**Perfect for production deployments!** After deploying new code, simply run the reload command to apply changes without service interruption.
+
+**Example Production Workflow:**
+
+```bash
+# 1. Deploy your code
+git pull origin main
+composer install --no-dev --optimize-autoloader
+
+# 2. Reload workers (zero downtime!)
+php bin/console swoole:server:reload
+
+# Done! New code is active without any interruption 🎉
+```
+
+### Hot Reload (Development)
+
+Start server with automatic file watching and reload:
+
+```bash
+php bin/console swoole:server:watch
+
+# Custom poll interval
+php bin/console swoole:server:watch --poll-interval=500
+
+# Don't clear cache on reload
+php bin/console swoole:server:watch --no-clear-cache
+```
+
+The hot-reload feature automatically watches for file changes in `src/`, `config/`, and `templates/` directories and reloads workers when changes are detected.
+
+---
+
 ## Complete Configuration Reference
 
 ```yaml
@@ -1328,6 +1411,89 @@ $result = AsyncFileSystem::exec('ls -la /path');
 // Attendre une modification de fichier (comme inotify)
 $changed = AsyncFileSystem::waitFileChange('/path/to/file.txt', timeout: 30.0);
 ```
+
+---
+
+## 13. Commandes de Gestion du Serveur
+
+### Démarrer le Serveur
+
+Démarrer le serveur HTTP Swoole :
+
+```bash
+# Mode production
+php bin/console swoole:server:start
+
+# Avec host/port personnalisés
+php bin/console swoole:server:start --host=127.0.0.1 --port=8080
+```
+
+### Arrêter le Serveur
+
+Arrêter le serveur en cours d'exécution :
+
+```bash
+php bin/console swoole:server:stop
+
+# Forcer l'arrêt
+php bin/console swoole:server:stop --force
+```
+
+### Recharger le Serveur (Zero-Downtime)
+
+**Commande de rechargement prête pour la production** - Rechargez les workers de manière gracieuse pour appliquer les changements de code sans arrêter le serveur :
+
+```bash
+# Rechargement standard (vide le cache + recharge les workers)
+php bin/console swoole:server:reload
+
+# Ignorer le vidage du cache
+php bin/console swoole:server:reload --no-cache-clear
+
+# Vider uniquement le cache sans recharger les workers
+php bin/console swoole:server:reload --only-cache
+
+# Forcer le vidage de l'OPcache
+php bin/console swoole:server:reload --opcache
+```
+
+**Comment ça fonctionne :**
+1. Vide le cache Symfony (`var/cache`)
+2. Vide l'OPcache pour garantir le chargement du nouveau code
+3. Envoie le signal de rechargement (SIGUSR1) à tous les workers
+4. Les workers terminent les requêtes en cours gracieusement
+5. Les workers se rechargent avec le nouveau code (zero downtime)
+
+**Parfait pour les déploiements en production !** Après avoir déployé du nouveau code, exécutez simplement la commande de rechargement pour appliquer les changements sans interruption de service.
+
+**Exemple de Workflow en Production :**
+
+```bash
+# 1. Déployer votre code
+git pull origin main
+composer install --no-dev --optimize-autoloader
+
+# 2. Recharger les workers (zero downtime !)
+php bin/console swoole:server:reload
+
+# Terminé ! Le nouveau code est actif sans aucune interruption 🎉
+```
+
+### Hot Reload (Développement)
+
+Démarrer le serveur avec surveillance automatique des fichiers et rechargement :
+
+```bash
+php bin/console swoole:server:watch
+
+# Intervalle de vérification personnalisé
+php bin/console swoole:server:watch --poll-interval=500
+
+# Ne pas vider le cache lors du rechargement
+php bin/console swoole:server:watch --no-clear-cache
+```
+
+La fonctionnalité hot-reload surveille automatiquement les changements de fichiers dans les répertoires `src/`, `config/`, et `templates/` et recharge les workers lorsque des changements sont détectés.
 
 ---
 

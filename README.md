@@ -211,6 +211,26 @@ php bin/console swoole:server:start --host=127.0.0.1 --port=8080
 php bin/console swoole:server:stop
 ```
 
+### Reload the Server (Zero-Downtime)
+
+Reload workers gracefully to apply code changes without stopping the server:
+
+```bash
+# Standard reload (clears cache + reloads workers)
+php bin/console swoole:server:reload
+
+# Skip cache clearing
+php bin/console swoole:server:reload --no-cache-clear
+
+# Only clear cache without reloading workers
+php bin/console swoole:server:reload --only-cache
+
+# Force OPcache clearing
+php bin/console swoole:server:reload --opcache
+```
+
+**Perfect for production deployments!** Workers finish current requests before reloading with new code.
+
 ### Access Your Application
 
 Open `http://localhost:9501` (or configured port).
@@ -439,7 +459,8 @@ $json = $collector->exportJson();
 
 - `swoole:server:start` - Start the server
 - `swoole:server:stop` - Stop the server
-- `swoole:server:watch` - Start with hot-reload
+- `swoole:server:reload` - Reload workers gracefully (zero-downtime)
+- `swoole:server:watch` - Start with hot-reload (development)
 
 ## 🤝 Contributing
 
@@ -649,6 +670,26 @@ php bin/console swoole:server:start --host=127.0.0.1 --port=8080
 ```bash
 php bin/console swoole:server:stop
 ```
+
+### Recharger le serveur (Zero-Downtime)
+
+Rechargez les workers de manière gracieuse pour appliquer les changements de code sans arrêter le serveur :
+
+```bash
+# Rechargement standard (vide le cache + recharge les workers)
+php bin/console swoole:server:reload
+
+# Ignorer le vidage du cache
+php bin/console swoole:server:reload --no-cache-clear
+
+# Vider uniquement le cache sans recharger les workers
+php bin/console swoole:server:reload --only-cache
+
+# Forcer le vidage de l'OPcache
+php bin/console swoole:server:reload --opcache
+```
+
+**Parfait pour les déploiements en production !** Les workers terminent les requêtes en cours avant de se recharger avec le nouveau code.
 
 ### Accéder à votre application
 
@@ -878,7 +919,8 @@ $json = $collector->exportJson();
 
 - `swoole:server:start` - Démarrer le serveur
 - `swoole:server:stop` - Arrêter le serveur
-- `swoole:server:watch` - Démarrer avec hot-reload
+- `swoole:server:reload` - Recharger les workers gracieusement (zero-downtime)
+- `swoole:server:watch` - Démarrer avec hot-reload (développement)
 
 ## 🤝 Contribution
 
