@@ -110,6 +110,14 @@ class Scheduler
     }
 
     /**
+     * Alias for clearAll() for compatibility
+     */
+    public function clear(): void
+    {
+        $this->clearAll();
+    }
+
+    /**
      * Get list of scheduled tasks
      */
     public function getScheduledTasks(): array

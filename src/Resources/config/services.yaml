@@ -81,8 +81,14 @@ services:
 
     # Cache Adapter
     Toadbeatz\SwooleBundle\Cache\SwooleCacheAdapter:
+        public: true
         arguments:
             $table: '@Toadbeatz\SwooleBundle\Cache\SwooleTable'
+
+    # Cache Alias (for easier discovery)
+    Toadbeatz\SwooleBundle\Cache\SwooleCache:
+        alias: Toadbeatz\SwooleBundle\Cache\SwooleCacheAdapter
+        public: true
 
     # Session Handler
     Toadbeatz\SwooleBundle\Session\SwooleSessionHandler:

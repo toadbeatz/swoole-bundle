@@ -232,4 +232,27 @@ class MetricsCollector
     {
         return \json_encode($this->export(), \JSON_PRETTY_PRINT);
     }
+
+    /**
+     * Start collecting metrics
+     * Called when a worker starts to initialize metrics collection
+     */
+    public function startCollecting(): void
+    {
+        // Metrics collection is automatic via recordRequest()
+        // This method can be used for initialization or periodic collection setup
+        // Reset metrics on worker start to get fresh metrics per worker lifecycle
+        $this->reset();
+    }
+
+    /**
+     * Stop collecting metrics
+     * Called when a worker stops to cleanup metrics collection
+     */
+    public function stopCollecting(): void
+    {
+        // Metrics collection cleanup if needed
+        // Currently no cleanup required as metrics are stored in atomic counters
+        // This method is here for future extensibility
+    }
 }
