@@ -13,7 +13,7 @@ class SwooleLock
     private $lock;
     private int $type;
 
-    // Lock type constants (fallback if Swoole\Lock not available)
+    // Lock type constants (matching Swoole\Lock constants)
     public const TYPE_MUTEX = 1;
     public const TYPE_RWLOCK = 2;
     public const TYPE_SPINLOCK = 3;
@@ -21,19 +21,26 @@ class SwooleLock
 
     public function __construct(int $type = self::TYPE_MUTEX)
     {
-        if (!\class_exists('Swoole\Lock')) {
+        if (!\extension_loaded('swoole') || !\class_exists('Swoole\Lock')) {
             throw new \RuntimeException('Swoole\Lock class is not available. Please ensure the Swoole extension is installed and enabled.');
         }
 
         $this->type = $type;
         $lockClass = 'Swoole\Lock';
         
-        // Use constants from Swoole\Lock if available
+        // Map our constants to Swoole constants if they exist
+        $swooleType = $type;
         if (\defined('Swoole\Lock::MUTEX')) {
-            $this->type = $type;
+            $typeMap = [
+                self::TYPE_MUTEX => \Swoole\Lock::MUTEX,
+                self::TYPE_RWLOCK => \Swoole\Lock::RWLOCK,
+                self::TYPE_SPINLOCK => \Swoole\Lock::SPINLOCK,
+                self::TYPE_SEM => \Swoole\Lock::SEM,
+            ];
+            $swooleType = $typeMap[$type] ?? $type;
         }
         
-        $this->lock = new $lockClass($type);
+        $this->lock = new $lockClass($swooleType);
     }
 
     /**

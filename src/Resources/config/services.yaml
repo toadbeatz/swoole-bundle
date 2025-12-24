@@ -145,6 +145,10 @@ services:
     # SYNCHRONIZATION SERVICES
     # ============================================
 
+    # Swoole Lock (lazy - only instantiated when needed)
+    Toadbeatz\SwooleBundle\Lock\SwooleLock:
+        lazy: true
+
     # Rate Limiter
     Toadbeatz\SwooleBundle\RateLimiter\RateLimiter:
         arguments:
