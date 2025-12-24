@@ -9,6 +9,8 @@ services:
             - '../DependencyInjection'
             - '../Entity'
             - '../Kernel.php'
+            - '../Lock'
+            - '../Queue'
 
     # ============================================
     # CORE SERVICES
@@ -145,9 +147,17 @@ services:
     # SYNCHRONIZATION SERVICES
     # ============================================
 
-    # Swoole Lock (lazy - only instantiated when needed)
+    # Swoole Lock (lazy - only instantiated when needed, requires Swoole extension)
     Toadbeatz\SwooleBundle\Lock\SwooleLock:
         lazy: true
+        autowire: false
+        autoconfigure: false
+
+    # Swoole Queue (lazy - only instantiated when needed, requires Swoole extension)
+    Toadbeatz\SwooleBundle\Queue\SwooleQueue:
+        lazy: true
+        autowire: false
+        autoconfigure: false
 
     # Rate Limiter
     Toadbeatz\SwooleBundle\RateLimiter\RateLimiter:
