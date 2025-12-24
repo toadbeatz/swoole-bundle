@@ -239,9 +239,19 @@ HELP
             return false;
         }
 
-        // Method 3: Try using kill command
+        // Method 3: Try using kill command (with sanitized PID)
         $io->text('Attempting reload via kill command...');
-        \exec(\sprintf('kill -USR1 %d 2>&1', $pid), $output, $returnCode);
+        // Sanitize PID to prevent command injection
+        $sanitizedPid = \filter_var($pid, \FILTER_VALIDATE_INT, [
+            'options' => ['min_range' => 1, 'max_range' => \PHP_INT_MAX]
+        ]);
+        
+        if ($sanitizedPid === false) {
+            $io->error('Invalid PID value.');
+            return false;
+        }
+        
+        \exec(\sprintf('kill -USR1 %d 2>&1', $sanitizedPid), $output, $returnCode);
         
         if ($returnCode !== 0) {
             $io->error(\sprintf('Failed to reload: %s', \implode("\n", $output)));
@@ -263,12 +273,29 @@ HELP
         
         // Windows fallback
         if (\PHP_OS_FAMILY === 'Windows') {
-            \exec("tasklist /FI \"PID eq $pid\" 2>NUL", $output);
+            // Sanitize PID to prevent command injection
+            $sanitizedPid = \filter_var($pid, \FILTER_VALIDATE_INT, [
+                'options' => ['min_range' => 1, 'max_range' => \PHP_INT_MAX]
+            ]);
+            
+            if ($sanitizedPid === false) {
+                return false;
+            }
+            
+            \exec(\sprintf('tasklist /FI "PID eq %d" 2>NUL', $sanitizedPid), $output);
             return \count($output) > 1;
         }
         
-        // Unix fallback
-        return \file_exists("/proc/$pid");
+        // Unix fallback - sanitize PID in path
+        $sanitizedPid = \filter_var($pid, \FILTER_VALIDATE_INT, [
+            'options' => ['min_range' => 1, 'max_range' => \PHP_INT_MAX]
+        ]);
+        
+        if ($sanitizedPid === false) {
+            return false;
+        }
+        
+        return \file_exists("/proc/$sanitizedPid");
     }
 }
 
