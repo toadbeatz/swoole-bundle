@@ -19,8 +19,12 @@ class SwooleLock
     public const TYPE_SPINLOCK = 3;
     public const TYPE_SEM = 4;
 
+    /**
+     * @internal Use SwooleLockFactory::create() instead
+     */
     public function __construct(int $type = self::TYPE_MUTEX)
     {
+        // This should only be called from the factory
         if (!\extension_loaded('swoole') || !\class_exists('Swoole\Lock')) {
             throw new \RuntimeException('Swoole\Lock class is not available. Please ensure the Swoole extension is installed and enabled.');
         }

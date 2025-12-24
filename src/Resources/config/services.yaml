@@ -147,11 +147,15 @@ services:
     # SYNCHRONIZATION SERVICES
     # ============================================
 
-    # Swoole Lock (lazy - only instantiated when needed, requires Swoole extension)
+    # Swoole Lock Factory (safe to load, creates lock only when needed)
+    Toadbeatz\SwooleBundle\Lock\SwooleLockFactory: ~
+
+    # Swoole Lock (lazy - only instantiated via factory when Swoole extension is available)
     Toadbeatz\SwooleBundle\Lock\SwooleLock:
         lazy: true
         autowire: false
         autoconfigure: false
+        public: false
 
     # Swoole Queue (lazy - only instantiated when needed, requires Swoole extension)
     Toadbeatz\SwooleBundle\Queue\SwooleQueue:
