@@ -104,8 +104,20 @@ HELP
         $noCacheClear = $input->getOption('no-cache-clear');
         $clearOpcache = $input->getOption('opcache');
 
-        // Step 1: Reload workers first (if not only-cache)
-        // This ensures workers finish current requests before cache is cleared
+        // Step 1: Clear Symfony cache FIRST (before reloading workers)
+        // This ensures cache is cleared before workers reload with new code
+        if (!$noCacheClear && !$onlyCache) {
+            $io->section('Clearing Symfony cache...');
+            $this->clearSymfonyCache($io);
+        }
+
+        // Step 2: Clear OPcache
+        if ($clearOpcache || (!$noCacheClear && !$onlyCache)) {
+            $this->clearOpcache($io);
+        }
+
+        // Step 3: Reload workers AFTER cache is cleared
+        // Workers will reload with fresh cache that will be rebuilt on first request
         if (!$onlyCache) {
             $io->section('Reloading workers...');
             $success = $this->reloadWorkers($pid, $io);
@@ -114,20 +126,6 @@ HELP
                 $io->error('Failed to reload workers.');
                 return Command::FAILURE;
             }
-
-            // Wait a moment for workers to start reloading
-            \usleep(500000); // 0.5 seconds
-        }
-
-        // Step 2: Clear Symfony cache (after workers started reloading)
-        if (!$noCacheClear && !$onlyCache) {
-            $io->section('Clearing Symfony cache...');
-            $this->clearSymfonyCache($io);
-        }
-
-        // Step 3: Clear OPcache
-        if ($clearOpcache || (!$noCacheClear && !$onlyCache)) {
-            $this->clearOpcache($io);
         }
 
         // Step 4: Final message
@@ -185,8 +183,39 @@ HELP
     /**
      * Safely clear cache directory contents
      * Removes files and subdirectories but keeps the main directory
+     * Uses Filesystem component for better error handling
      */
     private function clearCacheDirectory(string $cacheDir): void
+    {
+        if (!\is_dir($cacheDir)) {
+            return;
+        }
+
+        try {
+            // Use Symfony Filesystem for safer removal
+            // It handles file locks and permissions better
+            $this->filesystem->remove($cacheDir);
+            
+            // Recreate the directory structure
+            $this->filesystem->mkdir($cacheDir);
+            
+            // Create .gitkeep to preserve directory
+            $gitkeep = $cacheDir . '/.gitkeep';
+            if (!\file_exists($gitkeep)) {
+                \touch($gitkeep);
+            }
+        } catch (\Throwable $e) {
+            // If removal fails, try manual cleanup
+            // This can happen if files are locked by running processes
+            $this->manualCacheCleanup($cacheDir);
+        }
+    }
+
+    /**
+     * Manual cache cleanup as fallback
+     * Only removes files that are not currently in use
+     */
+    private function manualCacheCleanup(string $cacheDir): void
     {
         if (!\is_dir($cacheDir)) {
             return;
@@ -198,21 +227,20 @@ HELP
         );
 
         foreach ($iterator as $file) {
-            if ($file->isDir()) {
-                // Try to remove directory, but don't fail if it's in use
-                @\rmdir($file->getPathname());
-            } else {
-                // Try to remove file, but don't fail if it's in use
-                @\unlink($file->getPathname());
-            }
-        }
-
-        // Clear OPcache for cache files if available
-        if (\function_exists('opcache_invalidate')) {
-            foreach ($iterator as $file) {
-                if ($file->isFile() && \pathinfo($file->getPathname(), \PATHINFO_EXTENSION) === 'php') {
-                    @\opcache_invalidate($file->getPathname(), true);
+            try {
+                if ($file->isDir()) {
+                    @\rmdir($file->getPathname());
+                } else {
+                    // Invalidate OPcache first
+                    if (\function_exists('opcache_invalidate')) {
+                        @\opcache_invalidate($file->getPathname(), true);
+                    }
+                    // Then try to remove
+                    @\unlink($file->getPathname());
                 }
+            } catch (\Throwable $e) {
+                // Silently skip files that can't be removed (likely in use)
+                continue;
             }
         }
     }
