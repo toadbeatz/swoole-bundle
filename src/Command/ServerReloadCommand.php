@@ -104,18 +104,8 @@ HELP
         $noCacheClear = $input->getOption('no-cache-clear');
         $clearOpcache = $input->getOption('opcache');
 
-        // Step 1: Clear Symfony cache
-        if (!$noCacheClear && !$onlyCache) {
-            $io->section('Clearing Symfony cache...');
-            $this->clearSymfonyCache($io);
-        }
-
-        // Step 2: Clear OPcache
-        if ($clearOpcache || (!$noCacheClear && !$onlyCache)) {
-            $this->clearOpcache($io);
-        }
-
-        // Step 3: Reload workers (if not only-cache)
+        // Step 1: Reload workers first (if not only-cache)
+        // This ensures workers finish current requests before cache is cleared
         if (!$onlyCache) {
             $io->section('Reloading workers...');
             $success = $this->reloadWorkers($pid, $io);
@@ -125,10 +115,29 @@ HELP
                 return Command::FAILURE;
             }
 
+            // Wait a moment for workers to start reloading
+            \usleep(500000); // 0.5 seconds
+        }
+
+        // Step 2: Clear Symfony cache (after workers started reloading)
+        if (!$noCacheClear && !$onlyCache) {
+            $io->section('Clearing Symfony cache...');
+            $this->clearSymfonyCache($io);
+        }
+
+        // Step 3: Clear OPcache
+        if ($clearOpcache || (!$noCacheClear && !$onlyCache)) {
+            $this->clearOpcache($io);
+        }
+
+        // Step 4: Final message
+        if (!$onlyCache) {
             $io->success([
                 'Workers reloaded successfully!',
                 \sprintf('Server PID: %d', $pid),
                 'New code is now active. Workers will finish current requests and reload.',
+                '',
+                'Note: Cache has been cleared. New requests will rebuild the cache automatically.',
             ]);
         } else {
             $io->success('Cache cleared successfully!');
@@ -139,6 +148,7 @@ HELP
 
     /**
      * Clear Symfony cache
+     * Uses a safer approach: removes files but keeps directory structure
      */
     private function clearSymfonyCache(SymfonyStyle $io): void
     {
@@ -150,7 +160,9 @@ HELP
         
         if ($this->filesystem->exists($varCacheDir)) {
             try {
-                $this->filesystem->remove($varCacheDir);
+                // Use a safer approach: remove contents but keep the directory
+                // This prevents issues with workers that might still have file handles open
+                $this->clearCacheDirectory($varCacheDir);
                 $io->text('✓ Symfony cache cleared');
             } catch (\Throwable $e) {
                 $io->warning(\sprintf('Could not clear cache directory: %s', $e->getMessage()));
@@ -162,10 +174,45 @@ HELP
         // Also clear the kernel cache directory if different
         if ($cacheDir !== $varCacheDir && $this->filesystem->exists($cacheDir)) {
             try {
-                $this->filesystem->remove($cacheDir);
+                $this->clearCacheDirectory($cacheDir);
                 $io->text('✓ Kernel cache cleared');
             } catch (\Throwable $e) {
                 $io->warning(\sprintf('Could not clear kernel cache: %s', $e->getMessage()));
+            }
+        }
+    }
+
+    /**
+     * Safely clear cache directory contents
+     * Removes files and subdirectories but keeps the main directory
+     */
+    private function clearCacheDirectory(string $cacheDir): void
+    {
+        if (!\is_dir($cacheDir)) {
+            return;
+        }
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($cacheDir, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($iterator as $file) {
+            if ($file->isDir()) {
+                // Try to remove directory, but don't fail if it's in use
+                @\rmdir($file->getPathname());
+            } else {
+                // Try to remove file, but don't fail if it's in use
+                @\unlink($file->getPathname());
+            }
+        }
+
+        // Clear OPcache for cache files if available
+        if (\function_exists('opcache_invalidate')) {
+            foreach ($iterator as $file) {
+                if ($file->isFile() && \pathinfo($file->getPathname(), \PATHINFO_EXTENSION) === 'php') {
+                    @\opcache_invalidate($file->getPathname(), true);
+                }
             }
         }
     }
