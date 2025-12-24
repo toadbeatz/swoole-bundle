@@ -30,7 +30,8 @@ class SwooleQueue
         $this->queueName = $queueName;
         $this->maxSize = $maxSize;
         $lockClass = 'Swoole\Lock';
-        $this->lock = new $lockClass(\defined('Swoole\Lock::MUTEX') ? \Swoole\Lock::MUTEX : 1);
+        // Use 1 directly (MUTEX) - avoids loading Swoole\Lock constants
+        $this->lock = new $lockClass(1);
         
         // Create table for queue data
         $this->table = new SwooleTable($maxSize);

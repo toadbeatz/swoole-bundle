@@ -32,19 +32,9 @@ class SwooleLock
         $this->type = $type;
         $lockClass = 'Swoole\Lock';
         
-        // Map our constants to Swoole constants if they exist
-        $swooleType = $type;
-        if (\defined('Swoole\Lock::MUTEX')) {
-            $typeMap = [
-                self::TYPE_MUTEX => \Swoole\Lock::MUTEX,
-                self::TYPE_RWLOCK => \Swoole\Lock::RWLOCK,
-                self::TYPE_SPINLOCK => \Swoole\Lock::SPINLOCK,
-                self::TYPE_SEM => \Swoole\Lock::SEM,
-            ];
-            $swooleType = $typeMap[$type] ?? $type;
-        }
-        
-        $this->lock = new $lockClass($swooleType);
+        // Use type directly - our constants match Swoole's (1=MUTEX, 2=RWLOCK, 3=SPINLOCK, 4=SEM)
+        // This avoids loading Swoole\Lock constants which would trigger class loading
+        $this->lock = new $lockClass($type);
     }
 
     /**
