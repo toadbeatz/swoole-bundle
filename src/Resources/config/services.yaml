@@ -147,21 +147,9 @@ services:
     # SYNCHRONIZATION SERVICES
     # ============================================
 
-    # Swoole Lock Factory (safe to load, creates lock only when needed)
-    Toadbeatz\SwooleBundle\Lock\SwooleLockFactory: ~
-
-    # Swoole Lock (lazy - only instantiated via factory when Swoole extension is available)
-    Toadbeatz\SwooleBundle\Lock\SwooleLock:
-        lazy: true
-        autowire: false
-        autoconfigure: false
-        public: false
-
-    # Swoole Queue (lazy - only instantiated when needed, requires Swoole extension)
-    Toadbeatz\SwooleBundle\Queue\SwooleQueue:
-        lazy: true
-        autowire: false
-        autoconfigure: false
+    # Note: SwooleLock and SwooleQueue are not registered as services by default
+    # because they require the Swoole extension. Use SwooleLockFactory::create()
+    # or instantiate them directly when Swoole is available.
 
     # Rate Limiter
     Toadbeatz\SwooleBundle\RateLimiter\RateLimiter:
