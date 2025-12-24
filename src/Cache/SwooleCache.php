@@ -18,3 +18,4 @@ class SwooleCache extends SwooleCacheAdapter
     // All functionality is inherited from SwooleCacheAdapter
 }
 
+

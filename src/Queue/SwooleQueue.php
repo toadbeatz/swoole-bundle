@@ -6,7 +6,6 @@ namespace Toadbeatz\SwooleBundle\Queue;
 
 use Toadbeatz\SwooleBundle\Cache\SwooleTable;
 use Toadbeatz\SwooleBundle\Atomic\SwooleAtomic;
-use Swoole\Lock;
 
 /**
  * High-performance queue using Swoole Table
@@ -15,7 +14,7 @@ use Swoole\Lock;
 class SwooleQueue
 {
     private SwooleTable $table;
-    private Lock $lock;
+    private $lock;
     private string $queueName;
     private SwooleAtomic $head;
     private SwooleAtomic $tail;
@@ -24,9 +23,14 @@ class SwooleQueue
 
     public function __construct(string $queueName, int $maxSize = 100000)
     {
+        if (!\class_exists('Swoole\Lock')) {
+            throw new \RuntimeException('Swoole\Lock class is not available. Please ensure the Swoole extension is installed and enabled.');
+        }
+
         $this->queueName = $queueName;
         $this->maxSize = $maxSize;
-        $this->lock = new Lock(Lock::MUTEX);
+        $lockClass = 'Swoole\Lock';
+        $this->lock = new $lockClass(\defined('Swoole\Lock::MUTEX') ? \Swoole\Lock::MUTEX : 1);
         
         // Create table for queue data
         $this->table = new SwooleTable($maxSize);

@@ -4,26 +4,36 @@ declare(strict_types=1);
 
 namespace Toadbeatz\SwooleBundle\Lock;
 
-use Swoole\Lock;
-
 /**
  * Swoole Lock wrapper for cross-worker synchronization
  * Provides mutex, read-write locks, and semaphores
  */
 class SwooleLock
 {
-    private Lock $lock;
+    private $lock;
     private int $type;
 
-    public const TYPE_MUTEX = Lock::MUTEX;
-    public const TYPE_RWLOCK = Lock::RWLOCK;
-    public const TYPE_SPINLOCK = Lock::SPINLOCK;
-    public const TYPE_SEM = Lock::SEM;
+    // Lock type constants (fallback if Swoole\Lock not available)
+    public const TYPE_MUTEX = 1;
+    public const TYPE_RWLOCK = 2;
+    public const TYPE_SPINLOCK = 3;
+    public const TYPE_SEM = 4;
 
     public function __construct(int $type = self::TYPE_MUTEX)
     {
+        if (!\class_exists('Swoole\Lock')) {
+            throw new \RuntimeException('Swoole\Lock class is not available. Please ensure the Swoole extension is installed and enabled.');
+        }
+
         $this->type = $type;
-        $this->lock = new Lock($type);
+        $lockClass = 'Swoole\Lock';
+        
+        // Use constants from Swoole\Lock if available
+        if (\defined('Swoole\Lock::MUTEX')) {
+            $this->type = $type;
+        }
+        
+        $this->lock = new $lockClass($type);
     }
 
     /**
@@ -69,7 +79,7 @@ class SwooleLock
     /**
      * Get the underlying Swoole Lock instance
      */
-    public function getLock(): Lock
+    public function getLock()
     {
         return $this->lock;
     }
