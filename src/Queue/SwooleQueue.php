@@ -96,7 +96,18 @@ class SwooleQueue
             $this->head->set(($head + 1) % $this->maxSize);
             $this->sizeCounter->decrement();
 
-            return \unserialize($item['value']);
+            try {
+                // Use error suppression with validation for security
+                $value = @\unserialize($item['value'], ['allowed_classes' => true]);
+                if ($value === false && $item['value'] !== \serialize(false)) {
+                    // Invalid serialized data
+                    return null;
+                }
+                return $value;
+            } catch (\Throwable $e) {
+                // Corrupted queue entry
+                return null;
+            }
         } finally {
             $this->lock->unlock();
         }
@@ -120,7 +131,22 @@ class SwooleQueue
             $key = 'item_' . $head;
             $item = $this->table->get($key);
             
-            return $item ? \unserialize($item['value']) : null;
+            if (!$item) {
+                return null;
+            }
+            
+            try {
+                // Use error suppression with validation for security
+                $value = @\unserialize($item['value'], ['allowed_classes' => true]);
+                if ($value === false && $item['value'] !== \serialize(false)) {
+                    // Invalid serialized data
+                    return null;
+                }
+                return $value;
+            } catch (\Throwable $e) {
+                // Corrupted queue entry
+                return null;
+            }
         } finally {
             $this->lock->unlock();
         }

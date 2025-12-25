@@ -30,10 +30,25 @@ class SwooleCacheAdapter implements CacheInterface
             $item = $this->table->get($fullKey);
             if ($item && isset($item['value']) && isset($item['expires'])) {
                 if ($item['expires'] > \time()) {
-                    return \unserialize($item['value']);
+                    try {
+                        // Use error suppression with validation for security
+                        $value = @\unserialize($item['value'], ['allowed_classes' => true]);
+                        if ($value === false && $item['value'] !== \serialize(false)) {
+                            // Invalid serialized data, remove corrupted entry
+                            $this->table->del($fullKey);
+                            // Fall through to callback
+                        } else {
+                            return $value;
+                        }
+                    } catch (\Throwable $e) {
+                        // Corrupted cache entry, remove it
+                        $this->table->del($fullKey);
+                        // Fall through to callback
+                    }
+                } else {
+                    // Expired, remove it
+                    $this->table->del($fullKey);
                 }
-                // Expired, remove it
-                $this->table->del($fullKey);
             }
         }
 

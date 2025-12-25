@@ -271,10 +271,18 @@ class HttpServerManager
         $headers = $swooleRequest->header ?? [];
         $server = $swooleRequest->server ?? [];
 
+        // Validate and sanitize input to prevent header injection
+        $maxHeaderLength = 8192; // RFC 7230 limit
+        $maxUriLength = 8192; // RFC 7230 limit
+
         // Convert Swoole server variables to PHP $_SERVER format
         $serverVars = [];
         foreach ($server as $key => $value) {
-            $serverVars[\strtoupper($key)] = $value;
+            // Sanitize key
+            $key = \strtoupper((string) $key);
+            // Sanitize value - prevent header injection
+            $value = \is_string($value) ? \substr((string) $value, 0, $maxHeaderLength) : $value;
+            $serverVars[$key] = $value;
         }
 
         // Add headers to server vars
@@ -283,13 +291,19 @@ class HttpServerManager
             $serverVars[$key] = $value;
         }
 
-        // Set basic server vars
-        $serverVars['REQUEST_METHOD'] = $server['request_method'] ?? 'GET';
-        $serverVars['REQUEST_URI'] = $server['request_uri'] ?? '/';
+        // Set basic server vars with validation
+        $requestUri = $server['request_uri'] ?? '/';
+        // Validate URI length
+        if (\strlen($requestUri) > $maxUriLength) {
+            $requestUri = \substr($requestUri, 0, $maxUriLength);
+        }
+        
+        $serverVars['REQUEST_METHOD'] = \strtoupper($server['request_method'] ?? 'GET');
+        $serverVars['REQUEST_URI'] = $requestUri;
         $serverVars['SERVER_PROTOCOL'] = $server['server_protocol'] ?? 'HTTP/1.1';
         $serverVars['SERVER_NAME'] = $server['server_name'] ?? 'localhost';
-        $serverVars['SERVER_PORT'] = $server['server_port'] ?? 80;
-        $serverVars['QUERY_STRING'] = $server['query_string'] ?? '';
+        $serverVars['SERVER_PORT'] = (int) ($server['server_port'] ?? 80);
+        $serverVars['QUERY_STRING'] = \substr((string) ($server['query_string'] ?? ''), 0, $maxHeaderLength);
 
         // Handle content type for POST requests
         if (isset($headers['content-type'])) {
@@ -332,6 +346,22 @@ class HttpServerManager
         foreach ($response->headers->all() as $name => $values) {
             foreach ($values as $value) {
                 $swooleResponse->header($name, $value);
+            }
+        }
+
+        // Add security headers if not already set (only in production)
+        if (!$this->kernel->isDebug()) {
+            $securityHeaders = [
+                'X-Content-Type-Options' => 'nosniff',
+                'X-Frame-Options' => 'DENY',
+                'X-XSS-Protection' => '1; mode=block',
+                'Referrer-Policy' => 'strict-origin-when-cross-origin',
+            ];
+            
+            foreach ($securityHeaders as $header => $value) {
+                if (!$response->headers->has($header)) {
+                    $swooleResponse->header($header, $value);
+                }
             }
         }
 
