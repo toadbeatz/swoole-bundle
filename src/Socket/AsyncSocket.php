@@ -19,15 +19,20 @@ class AsyncSocket
     private int $type;
     private float $timeout;
 
-    public const TYPE_TCP = \SWOOLE_SOCK_TCP;
-    public const TYPE_UDP = \SWOOLE_SOCK_UDP;
-    public const TYPE_TCP6 = \SWOOLE_SOCK_TCP6;
-    public const TYPE_UDP6 = \SWOOLE_SOCK_UDP6;
-    public const TYPE_UNIX_STREAM = \SWOOLE_SOCK_UNIX_STREAM;
-    public const TYPE_UNIX_DGRAM = \SWOOLE_SOCK_UNIX_DGRAM;
+    // Constants defined conditionally to avoid errors when Swoole is not loaded
+    public const TYPE_TCP = 1; // SWOOLE_SOCK_TCP
+    public const TYPE_UDP = 2; // SWOOLE_SOCK_UDP
+    public const TYPE_TCP6 = 3; // SWOOLE_SOCK_TCP6
+    public const TYPE_UDP6 = 4; // SWOOLE_SOCK_UDP6
+    public const TYPE_UNIX_STREAM = 5; // SWOOLE_SOCK_UNIX_STREAM
+    public const TYPE_UNIX_DGRAM = 6; // SWOOLE_SOCK_UNIX_DGRAM
 
-    public function __construct(int $type = self::TYPE_TCP, float $timeout = 5.0)
+    public function __construct(?int $type = null, float $timeout = 5.0)
     {
+        // Use Swoole constants if available, otherwise use our fallback values
+        if ($type === null) {
+            $type = \defined('SWOOLE_SOCK_TCP') ? \SWOOLE_SOCK_TCP : self::TYPE_TCP;
+        }
         $this->type = $type;
         $this->timeout = $timeout;
     }
