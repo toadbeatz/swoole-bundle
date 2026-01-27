@@ -6,6 +6,7 @@ namespace Toadbeatz\SwooleBundle\Database;
 
 use Swoole\Coroutine\Channel;
 use Swoole\Coroutine\MySQL;
+use Swoole\Atomic;
 
 /**
  * Connection Pool for Doctrine/PDO using Swoole Coroutine MySQL
@@ -16,7 +17,7 @@ class ConnectionPool
     private Channel $pool;
     private array $config;
     private int $size;
-    private int $currentSize = 0;
+    private Atomic $currentSize; // Thread-safe counter
     private float $timeout;
 
     public function __construct(
@@ -28,6 +29,7 @@ class ConnectionPool
         $this->size = $size;
         $this->timeout = $timeout;
         $this->pool = new Channel($size);
+        $this->currentSize = new Atomic(0); // Thread-safe initialization
     }
 
     /**
@@ -39,7 +41,7 @@ class ConnectionPool
         
         if ($connection === false) {
             // Pool is empty, try to create a new connection if under limit
-            if ($this->currentSize < $this->size) {
+            if ($this->currentSize->get() < $this->size) {
                 return $this->createConnection();
             }
             
@@ -49,7 +51,7 @@ class ConnectionPool
 
         // Check if connection is still alive
         if (!$this->isConnectionAlive($connection)) {
-            $this->currentSize--;
+            $this->currentSize->sub(1);
             return $this->createConnection();
         }
 
@@ -66,7 +68,7 @@ class ConnectionPool
         }
 
         if (!$this->isConnectionAlive($connection)) {
-            $this->currentSize--;
+            $this->currentSize->sub(1);
             return;
         }
 
@@ -74,7 +76,7 @@ class ConnectionPool
         if (!$this->pool->push($connection, 0.1)) {
             // Pool is full, close the connection
             $connection->close();
-            $this->currentSize--;
+            $this->currentSize->sub(1);
         }
     }
 
@@ -83,7 +85,16 @@ class ConnectionPool
      */
     private function createConnection(): ?MySQL
     {
-        if ($this->currentSize >= $this->size) {
+        // Thread-safe check and increment
+        $current = $this->currentSize->get();
+        if ($current >= $this->size) {
+            return null;
+        }
+        
+        // Atomic increment to prevent race condition
+        if ($this->currentSize->add(1) > $this->size) {
+            // Rollback if we exceeded the limit
+            $this->currentSize->sub(1);
             return null;
         }
 
@@ -103,10 +114,11 @@ class ConnectionPool
         ]);
 
         if (!$connected) {
+            // Rollback on connection failure
+            $this->currentSize->sub(1);
             return null;
         }
 
-        $this->currentSize++;
         return $connection;
     }
 
@@ -133,7 +145,7 @@ class ConnectionPool
                 $connection->close();
             }
         }
-        $this->currentSize = 0;
+        $this->currentSize->set(0);
     }
 
     /**
@@ -141,11 +153,12 @@ class ConnectionPool
      */
     public function getStats(): array
     {
+        $current = $this->currentSize->get();
         return [
             'size' => $this->size,
-            'current' => $this->currentSize,
+            'current' => $current,
             'available' => $this->pool->length(),
-            'in_use' => $this->currentSize - $this->pool->length(),
+            'in_use' => $current - $this->pool->length(),
         ];
     }
 }

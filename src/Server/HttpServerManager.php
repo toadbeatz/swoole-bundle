@@ -285,14 +285,25 @@ class HttpServerManager
             $serverVars[$key] = $value;
         }
 
-        // Add headers to server vars
+        // Add headers to server vars with security validation
         foreach ($headers as $key => $value) {
-            $key = 'HTTP_' . \strtoupper(\str_replace('-', '_', $key));
-            $serverVars[$key] = $value;
+            // Prevent CRLF injection in header names and values
+            $key = \str_replace(["\r", "\n", "\0"], '', (string) $key);
+            $value = \str_replace(["\r", "\n", "\0"], '', (string) $value);
+            
+            // Validate header length
+            if (\strlen($key) > $maxHeaderLength || \strlen($value) > $maxHeaderLength) {
+                continue; // Skip invalid headers
+            }
+            
+            $normalizedKey = 'HTTP_' . \strtoupper(\str_replace('-', '_', $key));
+            $serverVars[$normalizedKey] = $value;
         }
 
         // Set basic server vars with validation
         $requestUri = $server['request_uri'] ?? '/';
+        // Remove null bytes and CRLF to prevent injection
+        $requestUri = \str_replace(["\0", "\r", "\n"], '', (string) $requestUri);
         // Validate URI length
         if (\strlen($requestUri) > $maxUriLength) {
             $requestUri = \substr($requestUri, 0, $maxUriLength);

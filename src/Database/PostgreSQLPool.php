@@ -6,6 +6,7 @@ namespace Toadbeatz\SwooleBundle\Database;
 
 use Swoole\Coroutine\Channel;
 use Swoole\Coroutine\PostgreSQL;
+use Swoole\Atomic;
 
 /**
  * PostgreSQL Connection Pool using Swoole Coroutine PostgreSQL
@@ -18,7 +19,7 @@ class PostgreSQLPool
     private Channel $pool;
     private array $config;
     private int $size;
-    private int $currentSize = 0;
+    private Atomic $currentSize; // Thread-safe counter
     private float $timeout;
     private bool $initialized = false;
 
@@ -31,6 +32,7 @@ class PostgreSQLPool
         $this->size = $size;
         $this->timeout = $timeout;
         $this->pool = new Channel($size);
+        $this->currentSize = new Atomic(0); // Thread-safe initialization
     }
 
     /**
@@ -66,14 +68,14 @@ class PostgreSQLPool
         $connection = $this->pool->pop($this->timeout);
         
         if ($connection === false) {
-            if ($this->currentSize < $this->size) {
+            if ($this->currentSize->get() < $this->size) {
                 return $this->createConnection();
             }
             return $this->pool->pop($this->timeout) ?: null;
         }
 
         if (!$this->isConnectionAlive($connection)) {
-            $this->currentSize--;
+            $this->currentSize->sub(1);
             return $this->createConnection();
         }
 
@@ -90,12 +92,12 @@ class PostgreSQLPool
         }
 
         if (!$this->isConnectionAlive($connection)) {
-            $this->currentSize--;
+            $this->currentSize->sub(1);
             return;
         }
 
         if (!$this->pool->push($connection, 0.1)) {
-            $this->currentSize--;
+            $this->currentSize->sub(1);
         }
     }
 
@@ -207,7 +209,16 @@ class PostgreSQLPool
      */
     private function createConnection(): ?PostgreSQL
     {
-        if ($this->currentSize >= $this->size) {
+        // Thread-safe check and increment
+        $current = $this->currentSize->get();
+        if ($current >= $this->size) {
+            return null;
+        }
+        
+        // Atomic increment to prevent race condition
+        if ($this->currentSize->add(1) > $this->size) {
+            // Rollback if we exceeded the limit
+            $this->currentSize->sub(1);
             return null;
         }
 
@@ -217,10 +228,11 @@ class PostgreSQLPool
         $connected = $connection->connect($connectionString);
 
         if (!$connected) {
+            // Rollback on connection failure
+            $this->currentSize->sub(1);
             return null;
         }
 
-        $this->currentSize++;
         return $connection;
     }
 
@@ -275,7 +287,7 @@ class PostgreSQLPool
             $connection = $this->pool->pop(0.1);
             // PostgreSQL connections are closed when object is destroyed
         }
-        $this->currentSize = 0;
+        $this->currentSize->set(0);
         $this->initialized = false;
     }
 
@@ -284,12 +296,13 @@ class PostgreSQLPool
      */
     public function getStats(): array
     {
+        $current = $this->currentSize->get();
         return [
             'driver' => 'postgresql',
             'size' => $this->size,
-            'current' => $this->currentSize,
+            'current' => $current,
             'available' => $this->pool->length(),
-            'in_use' => $this->currentSize - $this->pool->length(),
+            'in_use' => $current - $this->pool->length(),
             'initialized' => $this->initialized,
         ];
     }
