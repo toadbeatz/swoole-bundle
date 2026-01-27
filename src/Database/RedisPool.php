@@ -6,6 +6,7 @@ namespace Toadbeatz\SwooleBundle\Database;
 
 use Swoole\Coroutine\Channel;
 use Swoole\Coroutine\Redis;
+use Swoole\Atomic;
 
 /**
  * Redis Connection Pool using Swoole Coroutine Redis
@@ -18,7 +19,7 @@ class RedisPool
     private Channel $pool;
     private array $config;
     private int $size;
-    private int $currentSize = 0;
+    private Atomic $currentSize; // Thread-safe counter
     private float $timeout;
     private bool $initialized = false;
 
@@ -31,6 +32,7 @@ class RedisPool
         $this->size = $size;
         $this->timeout = $timeout;
         $this->pool = new Channel($size);
+        $this->currentSize = new Atomic(0); // Thread-safe initialization
     }
 
     /**
@@ -65,14 +67,14 @@ class RedisPool
         $connection = $this->pool->pop($this->timeout);
         
         if ($connection === false) {
-            if ($this->currentSize < $this->size) {
+            if ($this->currentSize->get() < $this->size) {
                 return $this->createConnection();
             }
             return $this->pool->pop($this->timeout) ?: null;
         }
 
         if (!$this->isConnectionAlive($connection)) {
-            $this->currentSize--;
+            $this->currentSize->sub(1);
             return $this->createConnection();
         }
 
@@ -90,13 +92,13 @@ class RedisPool
 
         if (!$this->isConnectionAlive($connection)) {
             $connection->close();
-            $this->currentSize--;
+            $this->currentSize->sub(1);
             return;
         }
 
         if (!$this->pool->push($connection, 0.1)) {
             $connection->close();
-            $this->currentSize--;
+            $this->currentSize->sub(1);
         }
     }
 
@@ -270,7 +272,16 @@ class RedisPool
      */
     private function createConnection(): ?Redis
     {
-        if ($this->currentSize >= $this->size) {
+        // Thread-safe check and increment
+        $current = $this->currentSize->get();
+        if ($current >= $this->size) {
+            return null;
+        }
+        
+        // Atomic increment to prevent race condition
+        if ($this->currentSize->add(1) > $this->size) {
+            // Rollback if we exceeded the limit
+            $this->currentSize->sub(1);
             return null;
         }
 
@@ -283,6 +294,8 @@ class RedisPool
         $connected = $connection->connect($host, $port, $timeout);
 
         if (!$connected) {
+            // Rollback on connection failure
+            $this->currentSize->sub(1);
             return null;
         }
 
@@ -300,7 +313,6 @@ class RedisPool
             $connection->select($this->config['database']);
         }
 
-        $this->currentSize++;
         return $connection;
     }
 
@@ -327,7 +339,7 @@ class RedisPool
                 $connection->close();
             }
         }
-        $this->currentSize = 0;
+        $this->currentSize->set(0);
         $this->initialized = false;
     }
 
@@ -336,12 +348,13 @@ class RedisPool
      */
     public function getStats(): array
     {
+        $current = $this->currentSize->get();
         return [
             'driver' => 'redis',
             'size' => $this->size,
-            'current' => $this->currentSize,
+            'current' => $current,
             'available' => $this->pool->length(),
-            'in_use' => $this->currentSize - $this->pool->length(),
+            'in_use' => $current - $this->pool->length(),
             'initialized' => $this->initialized,
         ];
     }

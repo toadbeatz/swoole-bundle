@@ -19,7 +19,7 @@ class SwooleBundle extends Bundle
      * Bundle version
      * This is the single source of truth for the bundle version
      */
-    public const VERSION = '1.2.0';
+    public const VERSION = '1.3.0';
 
     public function getPath(): string
     {

@@ -31,8 +31,13 @@ class SwooleCacheAdapter implements CacheInterface
             if ($item && isset($item['value']) && isset($item['expires'])) {
                 if ($item['expires'] > \time()) {
                     try {
-                        // Use error suppression with validation for security
-                        $value = @\unserialize($item['value'], ['allowed_classes' => true]);
+                        // Security: Only allow safe classes for deserialization
+                        // This prevents object injection attacks
+                        $value = @\unserialize($item['value'], [
+                            'allowed_classes' => false, // Disable all classes by default for security
+                        ]);
+                        
+                        // Validate deserialization result
                         if ($value === false && $item['value'] !== \serialize(false)) {
                             // Invalid serialized data, remove corrupted entry
                             $this->table->del($fullKey);
@@ -42,6 +47,14 @@ class SwooleCacheAdapter implements CacheInterface
                         }
                     } catch (\Throwable $e) {
                         // Corrupted cache entry, remove it
+                        // Log error in debug mode
+                        if (\defined('APP_DEBUG') && \APP_DEBUG) {
+                            \error_log(\sprintf(
+                                'SwooleCache: Failed to deserialize key "%s": %s',
+                                $key,
+                                $e->getMessage()
+                            ));
+                        }
                         $this->table->del($fullKey);
                         // Fall through to callback
                     }
